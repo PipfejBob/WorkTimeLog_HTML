@@ -27,10 +27,10 @@
 			return date_str;
 		}
 
-		function ms_to_string(t)
+		function s_to_string(t)
 		{
-				var h = Math.floor(t / 3600000);
-				var m = t % 3600000 / 60 / 1000;
+				var h = Math.floor(t / 3600);
+				var m = t % 3600 / 60;
 				return (h<10 ? '0' : '') + h + ':' + (m<10 ? '0' : '') + m;
 		}
 
@@ -94,13 +94,42 @@
 			// STOP MENÜ
 			$("#btn_stop").click(function()
 			{
-				$('.ui.dropdown').dropdown();
 
-				$('.ui.dropdown.majom')
-			  .dropdown({values: [
-			  	{name: 'Munka 1', value: 'm1'},
-			  	{name: 'Munka 2', value: 'm2', selected : true}
-			  ]});
+				$('.ui.dropdown.diszpo').dropdown({
+ 					onChange: function() {
+						//debugger;
+						if($('.ui.dropdown.diszpo').dropdown('get value') != ""){
+							// a dropdown objektum value értéke a diszpo_ID, a text-je a diszpo_name
+
+							index = wt_list.diszpo_l.findIndex(x => x.ID == $('.ui.dropdown.diszpo').dropdown('get value'));
+							//console.log(diszpo_index);
+							Work_post.ID_Diszpo = wt_list.diszpo_l[index]["ID"];
+							Work.Diszpo_ID = wt_list.diszpo_l[index]["DiszpoID"];
+							Work.Diszpo_Name = wt_list.diszpo_l[index]["DiszpoName"];
+						}
+
+					}
+				});
+
+				$('.ui.dropdown.modul').dropdown({
+ 					onChange: function() {
+						if($('.ui.dropdown.modul').dropdown('get value') != ""){
+							index = wt_list.modulename_l.findIndex(x => x.ID == $('.ui.dropdown.modul').dropdown('get value'));
+							Work_post.ID_ModuleName = wt_list.modulename_l[index]["ID"];
+							Work.Work_On = wt_list.modulename_l[index]["Name"];
+						}
+					}
+				});
+
+				$('.ui.dropdown.desc').dropdown({
+ 					onChange: function() {
+						if($('.ui.dropdown.desc').dropdown('get value') != ""){
+							index = wt_list.workdescription_l.findIndex(x => x.ID == $('.ui.dropdown.desc').dropdown('get value'));
+							Work_post.ID_WorkDescription = wt_list.workdescription_l[index]["ID"];
+							Work.Work_Desc = wt_list.workdescription_l[index]["Description"];
+						}
+					}
+				});
 
 				$('#stop_modal').modal({
 					centered: false,
@@ -108,12 +137,50 @@
 					// OK gomb megnyomásásra
 					onApprove: function()
 					{
+						//debugger;
+						console.log(Work);
+
+						Work_post.RowID = Work.RowID;
+						Work_post.Time_Start = date_to_string(Work.Time_Start) + ":00";
+						Work_post.Time_Stop = date_to_string(Work.Time_Stop) + ":00";
+						Work_post.Time_Minus = s_to_string(Work.Time_Minus) + ":00";
+						Work_post.Time_WorkStop = date_to_string(Work.Time_WorkStop) + ":00";
+						Work_post.WorkTime_InSec = Work.WorkTime_InSec;
+						Work_post.WorkTime_InHour = s_to_string(Work.WorkTime_InSec) + ":00";
+
+						console.log(Work_post);
+
+						$.post("upload_stoptime.php", Work_post);
+						/*
+						$.post("upload_stoptime.php", Work)
+						.done(function( resp ) {
+								//debugger;
+								JSON_data = jQuery.parseJSON(resp);
+								console.log(JSON_data);
+
+								if(JSON_data.LastRow == null){
+
+									alert("Hiba: Nem sikerült becsinálni!");
+								}
+								else{
+									alert("Sikerült valami!");
+								}
+						});
+						*/
             console.log('Stop Menü / OK button');
         	},
 					// Mégse gomb megnyomásásra
 					onDeny: function()
 					{
 						console.log('Stop Menü / Mégse button');
+					},
+					onHidden: function()
+					{
+						//debugger;
+						console.log('Stop Menü / onHidden');
+						$('.ui.dropdown.diszpo').dropdown('clear');
+						$('.ui.dropdown.modul').dropdown('clear');
+						$('.ui.dropdown.desc').dropdown('clear');
 					}
 				}).modal('show');
 
@@ -124,13 +191,32 @@
 					stop_time: "?"
 				};
 
+				var Last_Work = {
+					ID_wt: null,
+					ID_Diszpo: null,
+					ID_ModuleName: null,
+					ID_WorkDescription: null
+				}
+
+				var Work_post={
+					RowID: "",
+					Time_Start: "",
+					Time_Stop: "",
+					Time_Minus: "",
+					Time_WorkStop: "",
+					WorkTime_InSec: "",
+					WorkTime_InHour: "",
+					ID_Diszpo: "",
+					ID_ModuleName: "",
+					ID_WorkDescription: "",
+				}
+
 				var Work = {
 					RowID: "",
 					Time_Start: "",
 					Time_Stop: "",
 					Time_Minus: "",
 					Time_WorkStop: "",
-					WorkTime: "",
 					WorkTime_InSec: "",
 					WorkTime_InHour: "",
 					Diszpo_ID: "",
@@ -139,22 +225,34 @@
 					Work_Desc: ""
 				};
 
-				$.post("upload_stoptime.php", data)
+				var wt_list = {
+					diszpo_l: "",
+					modulename_l: "",
+					workdescription_l: "",
+				};
+
+				// data -> PHP -> resp -> JS
+				$.post("upload_stoptime_init.php", data)
 				.done(function( resp ) {
-						//debugger;
 						//myObj = JSON.parse(resp);
 						JSON_data = jQuery.parseJSON(resp);
 						console.log(JSON_data);
 
-						if(JSON_data.LastRow == null){
+						if(JSON_data.ActRow == null){
 
 							alert("Hiba: Nincs elindított munka!");
 						}
 						else{
-							// Az utolsó elindított munka lesz a munkaidő kezdete
-							Work.RowID = JSON_data.LastRow.ID;
+							// Az utolsó munka adatait elmentjük a Last_Work objektumba
+							Last_Work.ID_wt = JSON_data.LastRow.ID;
+							Last_Work.ID_Diszpo = JSON_data.LastRow.ID_Diszpo;
+							Last_Work.ID_ModuleName = JSON_data.LastRow.ID_ModuleName;
+							Last_Work.ID_WorkDescription = JSON_data.LastRow.ID_WorkDescription;
 
-							tmp = Date.parse(JSON_data.LastRow.StartTime.substr(0, 16));
+							// Az utolsó elindított munka lesz a munkaidő kezdete
+							Work.RowID = JSON_data.ActRow.ID;
+
+							tmp = Date.parse(JSON_data.ActRow.StartTime.substr(0, 16));
 							if(isNaN(tmp)){}
 							else{
 								Work.Time_Start = new Date(tmp);
@@ -167,59 +265,65 @@
 							Work.Time_Stop.setSeconds(0);
 							Work.Time_Stop.setMilliseconds(0);
 							document.getElementById("stopm_stop_time_in").value = date_to_string(Work.Time_Stop);
-
 							// Ebédidő kiszámítása
 							console.log("Work.Time_Start = " + Work.Time_Start);
 							console.log("Work.Time_Stop = " + Work.Time_Stop);
 							minus_time_calc(Work);
-							console.log("Work.Time_Minus = " + Work.Time_Minus + ' ms = ' + ms_to_string(Work.Time_Minus));
-							document.getElementById("stopm_minus_time_in").value = ms_to_string(Work.Time_Minus);
+							console.log("Work.Time_Minus = " + Work.Time_Minus + ' s = ' + s_to_string(Work.Time_Minus));
+							document.getElementById("stopm_minus_time_in").value = s_to_string(Work.Time_Minus);
 
 							// Munkaidők kiszámítása: Time_WorkStop, WorkTime_InHour, WorkTime_InSec
 							work_time_calc(Work);
 							document.getElementById("stopm_wt_stop_in").value = date_to_string(Work.Time_WorkStop);
-							document.getElementById("stopm_wt_hour_in").value = ms_to_string(Work.WorkTime);
+							document.getElementById("stopm_wt_hour_in").value = s_to_string(Work.WorkTime_InSec);
 							document.getElementById("stopm_wt_sec_in").value = Work.WorkTime_InSec;
 
 							// Diszpó kiválasztása (legördülőből)
+							wt_list.diszpo_l = JSON_data.diszpo;
 
 							// Modul kiválasztása (legördülőből)
+							wt_list.modulename_l = JSON_data.modulename;
 
 							// Munkaleírás kiválasztása (legördülőből)
+							wt_list.workdescription_l = JSON_data.workdescription;
 
+							$('.ui.dropdown.diszpo').dropdown('set selected', JSON_data.LastRow.ID_Diszpo);
+							$('.ui.dropdown.modul').dropdown('set selected', JSON_data.LastRow.ID_ModuleName);
+							$('.ui.dropdown.desc').dropdown('set selected', JSON_data.LastRow.ID_WorkDescription);
 						}
 				});	// post -> php
 
 				// Minus time kiszámítása
 				function minus_time_calc(Work){
-					var wt = Work.Time_Stop.getTime() - Work.Time_Start.getTime();
+					var wt = (Work.Time_Stop.getTime() - Work.Time_Start.getTime())/1000;
 					//console.log("Bent töltött idő = " + wt + ' ms = ' + ms_to_string(wt));
 
-					if(wt <= 14400000){
+					if(wt <= 14400){
 						//console.log("wt <= 3:00");
 						Work.Time_Minus = 0;
 					}
-					else if(wt > 14400000 && wt <= 31500000){
+					else if(wt > 14400 && wt <= 31500){
 						//console.log("4:00 < wt <= 8:45");
-						Work.Time_Minus = 2700000;	// 00:45
+						Work.Time_Minus = 2700;	// 00:45
 					}
-					else if(wt > 31500000 && wt <= 32400000){
+					else if(wt > 31500 && wt <= 32400){
 						//console.log("8:45 < wt <= 9:00");
 						//Work.Time_Minus = wt - 28000000;
-						Work.Time_Minus = 2700000;	// 00:45
+						Work.Time_Minus = 2700;	// 00:45
 					}
 					else{
 						//console.log("wt > 9:00");
-						Work.Time_Minus = 2700000;	// 00:45
+						Work.Time_Minus = 2700;	// 00:45
 					}
 					return 0;
 				}
 
 				// Munkaidők kiszámítása
 				function work_time_calc(Work){
-					Work.Time_WorkStop = new Date(Work.Time_Stop - Work.Time_Minus);
-					Work.WorkTime = Work.Time_WorkStop - Work.Time_Start;
-					Work.WorkTime_InSec = (Work.Time_Stop.getTime() - Work.Time_Start.getTime() - Work.Time_Minus)/1000;
+					Work.Time_WorkStop = new Date(Work.Time_Stop - Work.Time_Minus * 1000);
+					//Work.WorkTime = (Work.Time_WorkStop - Work.Time_Start) / 1000;
+					Work.WorkTime_InSec = (Work.Time_Stop.getTime() - Work.Time_Start.getTime())/1000 - Work.Time_Minus;
+					Work.WorkTime_InHour = s_to_string(Work.WorkTime_InSec);
 
 					if(Work.WorkTime_InSec < 0){
 						document.getElementById("error_stopm_wt_sec_in").classList.remove('hidden');
@@ -230,8 +334,13 @@
 					return 0;
 				}
 
+				// OK gomb elrejtése vagy engedélyezése
 				function stopm_approve_enable(Work){
-					if(Work.Time_Start == "Invalid Date" || Work.Time_Stop == "Invalid Date" || Work.Time_Stop < Work.Time_Start || Work.Time_Minus == null){
+					if(	Work.Time_Start == "Invalid Date" ||
+							Work.Time_Stop == "Invalid Date" ||
+							Work.Time_Stop < Work.Time_Start ||
+							Work.Time_Minus == null
+							){
 						document.getElementById("stopm_btn_start").classList.add('disabled');
 					}
 					else{
@@ -252,10 +361,10 @@
 						Work.Time_Start.setMilliseconds(0);
 						//console.log(Work.Time_Start);
 						minus_time_calc(Work);
-						document.getElementById("stopm_minus_time_in").value = ms_to_string(Work.Time_Minus);
+						document.getElementById("stopm_minus_time_in").value = s_to_string(Work.Time_Minus);
 						work_time_calc(Work);
 						document.getElementById("stopm_wt_stop_in").value = date_to_string(Work.Time_WorkStop);
-						document.getElementById("stopm_wt_hour_in").value = ms_to_string(Work.WorkTime);
+						document.getElementById("stopm_wt_hour_in").value = s_to_string(Work.WorkTime_InSec);
 						document.getElementById("stopm_wt_sec_in").value = Work.WorkTime_InSec;
 					}
 					else{
@@ -276,7 +385,7 @@
 						document.getElementById("stopm_minus_time_in").value = ms_to_string(Work.Time_Minus);
 						work_time_calc(Work);
 						document.getElementById("stopm_wt_stop_in").value = date_to_string(Work.Time_WorkStop);
-						document.getElementById("stopm_wt_hour_in").value = ms_to_string(Work.WorkTime);
+						document.getElementById("stopm_wt_hour_in").value = s_to_string(Work.WorkTime_InSec);
 						document.getElementById("stopm_wt_sec_in").value = Work.WorkTime_InSec;
 					}
 					else{
@@ -298,7 +407,7 @@
 						//console.log(Work.Time_Minus);
 						work_time_calc(Work);
 						document.getElementById("stopm_wt_stop_in").value = date_to_string(Work.Time_WorkStop);
-						document.getElementById("stopm_wt_hour_in").value = ms_to_string(Work.WorkTime);
+						document.getElementById("stopm_wt_hour_in").value = s_to_string(Work.WorkTime_InSec);
 						document.getElementById("stopm_wt_sec_in").value = Work.WorkTime_InSec;
 					}
 					else{
@@ -384,25 +493,33 @@
 				</div>
 
 				<br><label>Diszpó</label><br>
-				<div class="ui selection dropdown" id="ui_stopm_diszpo_in">
-				  <input type="hidden" name="gender">
+				<div style="width:500px;" class="ui selection dropdown diszpo" id="ui_stopm_diszpo_in">
+				  <input style="width:500px;" type="hidden" name="gender">
 				  <i class="dropdown icon"></i>
 				  <div class="default text">Diszpó</div>
 				  <div class="menu" id="stopm_diszpo_in">
-				    <div class="item" data-value="1">Diszpó 1</div>
-				    <div class="item" data-value="0">Diszpó 2</div>
+						<?php	diszpo_list_all(); ?>
 				  </div>
 				</div>
 
 				<br><label>Modul</label><br>
-				<div class="ui dropdown majom">
-				  <div class="text"></div>
+				<div style="width:500px;" class="ui selection dropdown modul" id="ui_stopm_modul_in">
+				  <input style="width:500px;" type="hidden" name="gender">
 				  <i class="dropdown icon"></i>
+				  <div class="default text">Diszpó</div>
+				  <div class="menu" id="stopm_modul_in">
+						<?php	module_list_all(); ?>
+				  </div>
 				</div>
 
 				<br><label>Munkaleírás</label><br>
-				<div class="ui input" id="ui_stopm_modul_in">
-					<input type="text" placeholder="..." id="stopm_modul_in">
+				<div style="width:500px;" class="ui selection dropdown desc" id="ui_stopm_desc_in">
+				  <input style="width:500px;" type="hidden" name="gender">
+				  <i class="dropdown icon"></i>
+				  <div class="default text">Diszpó</div>
+				  <div class="menu" id="stopm_desc_in">
+						<?php	desc_list_all(); ?>
+				  </div>
 				</div>
 
 			</div>
@@ -515,6 +632,7 @@
 
 <?php
 	// kilistázza az összes munkát az adatbáziból
+
 	function wt_list_all()
 	{
 		include("config.php");
@@ -532,6 +650,46 @@
 		mysqli_close($db);
 	}
 
+	function diszpo_list_all()
+	{
+		include("config.php");
+		$sql = "SELECT * FROM diszpo";
+		$result = mysqli_query($db, $sql);
+		while ($row = mysqli_fetch_assoc($result))
+		{
+				// formátum: <div class="item" data-value="1">példa 1</div>
+				echo '<div class="item" data-value="' . $row['ID'] . '">' . $row['DiszpoName'] . ' ('. $row['DiszpoID'] . ')</div>';
+
+		}
+		mysqli_close($db);
+	}
+
+	function module_list_all()
+	{
+		include("config.php");
+		$sql = "SELECT * FROM modulename";
+		$result = mysqli_query($db, $sql);
+		while ($row = mysqli_fetch_assoc($result))
+		{
+				// formátum: <div class="item" data-value="1">példa 1</div>
+				echo '<div class="item" data-value="' . $row['ID'] . '">' . $row['Name'] . '</div>';
+
+		}
+		mysqli_close($db);
+	}
+	function desc_list_all()
+	{
+		include("config.php");
+		$sql = "SELECT * FROM workdescription";
+		$result = mysqli_query($db, $sql);
+		while ($row = mysqli_fetch_assoc($result))
+		{
+				// formátum: <div class="item" data-value="1">példa 1</div>
+				echo '<div class="item" data-value="' . $row['ID'] . '">' . $row['Description'] . '</div>';
+
+		}
+		mysqli_close($db);
+	}
 	#header('Content-Type: text/html; charset=utf-8');
 	//include("config.php");
 	//session_start();
